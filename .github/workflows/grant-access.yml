@@ -1,0 +1,27 @@
+name: Grant Access
+
+on:
+  member_invited:
+    types: [member]
+
+jobs:
+  grant-access:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check if user's email ends with "@jainuniversity.ac.in"
+        id: check_email
+        run: |
+          if [[ "${{ github.invitation.invitee.login }}" != "" ]]; then
+            email=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" "https://api.github.com/users/${{ github.invitation.invitee.login }}/events/public" | jq -r '.[].payload.commits[].author.email' | grep -E "@jainuniversity.ac.in$")
+            if [[ "$email" != "" ]]; then
+              echo "::set-output name=valid::true"
+            else
+              echo "::set-output name=valid::false"
+            fi
+          fi
+
+      - name: Add user to the repository if their email is valid
+        if: steps.check_email.outputs.valid == 'true'
+        run: |
+          gh auth login --with-token "${{ secrets.GITHUB_TOKEN }}"
+          gh api -X PUT /repos/DHRUV PANDYA/email_restriction/collaborators/${{ github.invitation.invitee.login }} --input - <<< '{"permission": "pull"}'
